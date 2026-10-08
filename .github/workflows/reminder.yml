@@ -1,0 +1,44 @@
+name: Daily reminder
+
+# Runs every morning and tells ntfy to deliver tonight's notification at exactly 9pm Toronto time.
+# (Scheduling ahead avoids GitHub's occasional cron delays, and handles daylight saving automatically.)
+on:
+  schedule:
+    - cron: '23 13 * * *'   # ~9am Toronto
+  workflow_dispatch:         # "Run workflow" button = send a test notification right now
+
+permissions:
+  actions: write             # lets the keep-alive step stop GitHub disabling this after 60 quiet days
+  contents: read
+
+env:
+  NTFY_TOPIC: checkin-669ab8b74c4e215b   # subscribe to this exact name in the ntfy app
+  REMIND_AT: '21:00'
+  TZ_NAME: America/Toronto
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Schedule tonight's notification
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            curl -fsS -H "Title: Daily check-in (test)" -H "Tags: white_check_mark" \
+              -d "It works. You'll get this every night at 9pm. Open Check-in from your home screen." \
+              "https://ntfy.sh/$NTFY_TOPIC"
+            exit 0
+          fi
+          DAY=$(TZ=$TZ_NAME date +%F)
+          AT=$(TZ=$TZ_NAME date -d "$DAY $REMIND_AT" +%s)
+          NOW=$(date +%s)
+          if [ "$AT" -le "$((NOW + 60))" ]; then echo "Already past $REMIND_AT today, skipping"; exit 0; fi
+          curl -fsS -H "At: $AT" -H "Title: Daily check-in" -H "Tags: memo" \
+            -d "How was today? Open Check-in from your home screen to log it." \
+            "https://ntfy.sh/$NTFY_TOPIC"
+          echo "Scheduled for $(TZ=$TZ_NAME date -d @$AT)"
+
+      - name: Keep this schedule alive
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/reminder.yml/enable" || true
