@@ -102,11 +102,24 @@ header h1{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:0}
 .chart .sub{display:flex;justify-content:space-between;gap:8px;margin:2px 0 6px}
 .plot{position:relative;touch-action:pan-y}
 .plot svg{display:block;width:100%;overflow:visible}
-.tip{position:absolute;top:-4px;pointer-events:none;background:var(--text);color:var(--bg);font-size:12px;line-height:1.35;padding:6px 8px;border-radius:8px;white-space:nowrap;transform:translateY(-100%);display:none;z-index:2}
+.tip{position:absolute;top:-4px;pointer-events:none;background:var(--text);color:var(--bg);font-size:12px;line-height:1.35;padding:6px 8px;border-radius:8px;width:max-content;max-width:min(250px,86vw);transform:translateY(-100%);display:none;z-index:2}
 .stats{margin-top:6px;font-size:13px;color:var(--text-2)}
 .stats div{display:flex;align-items:center;gap:6px;margin-top:3px}
 .stats .sw{width:10px;height:10px;border-radius:3px;flex:none}
 .empty{padding:24px 8px;text-align:center;color:var(--text-3);font-size:14px}
+
+/* notes & period browsing */
+.tnote{margin-top:5px;padding-top:5px;border-top:1px solid color-mix(in srgb,var(--bg) 35%,transparent);white-space:pre-wrap;word-break:break-word}
+.pager{display:flex;align-items:center;gap:8px;margin-top:10px}
+.plabel{flex:1;text-align:center;line-height:1.25}
+.plabel b{display:block;font-size:15px}
+.plabel .linkbtn{color:var(--accent);padding:2px 0;font-size:13px}
+.noteta{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);font-size:16px;line-height:1.35;resize:vertical;min-height:64px;display:block}
+.noteslist h3{margin:0 0 6px;font-size:15px;font-weight:600}
+.nrow{display:flex;gap:10px;width:100%;text-align:left;border:0;border-top:1px solid var(--border);background:none;padding:8px 0;font-size:14px;align-items:baseline}
+.nrow.first{border-top:0}
+.nrow b{flex:none;min-width:50px;color:var(--text-2)}
+.nrow span{flex:1;word-break:break-word}
 
 /* settings */
 label.f{display:block;margin:10px 0}
@@ -145,6 +158,8 @@ nav.tabs button[aria-current=true]{color:var(--accent)}
     </div>
     <div class="strip" id="strip"></div>
     <div id="questions"></div>
+    <div class="card q"><h3>Note <span>optional · shows on the charts</span></h3>
+      <textarea id="noteBox" class="noteta" rows="2" maxlength="280" placeholder="e.g. started steroids today"></textarea></div>
     <div class="savebar">
       <button class="linkbtn" id="delDay" hidden>Clear this day</button>
       <span class="small muted" id="progress"></span>
@@ -155,8 +170,14 @@ nav.tabs button[aria-current=true]{color:var(--accent)}
   <!-- TRENDS -->
   <section class="view" id="view-trends">
     <div class="seg" id="periods"></div>
+    <div class="pager">
+      <button class="nav" id="pPrev" aria-label="Earlier period">‹</button>
+      <div class="plabel"><b id="pRange"></b><button class="linkbtn" id="pToday" hidden>Back to today</button></div>
+      <button class="nav" id="pNext" aria-label="Later period">›</button>
+    </div>
     <div class="toggles" id="toggles"></div>
     <div class="tiny" id="coverage"></div>
+    <div id="notesList"></div>
     <div id="charts"></div>
   </section>
 
@@ -215,6 +236,7 @@ const PERIODS = [[30,'30D'],[90,'90D'],[182,'6M'],[365,'1Y']];
 /* ---------- storage ---------- */
 const DATA_KEY='checkin.data.v1', SET_KEY='checkin.settings.v1', UI_KEY='checkin.ui.v1';
 const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 let data = load(DATA_KEY,{entries:{}}); if(!data || !data.entries) data={entries:{}};
@@ -263,9 +285,30 @@ function setField(day,key,val){
   const e=Object.assign({},getEntry(day)||{}); delete e.deleted;
   if(val===undefined) delete e[key]; else e[key]=val;
   e.updated=Date.now();
-  data.entries[day] = answered(e) ? e : {deleted:true, updated:e.updated};
+  data.entries[day] = (answered(e)||e.note) ? e : {deleted:true, updated:e.updated};
   persist(); renderLog(); flashSaved(); scheduleSync();
 }
+
+/* notes: saved shortly after typing stops, and always before leaving the day/tab */
+let noteT, pendingNote=null, noteDay=null;
+function setNote(day,text){
+  text=text.trim();
+  const prev=getEntry(day)||{};
+  if((prev.note||'')===text) return;
+  const e=Object.assign({},prev); delete e.deleted;
+  if(text) e.note=text; else delete e.note;
+  e.updated=Date.now();
+  data.entries[day] = (answered(e)||e.note) ? e : {deleted:true, updated:e.updated};
+  persist(); renderLog(); flashSaved(); scheduleSync();
+}
+function flushNote(){
+  clearTimeout(noteT);
+  if(!pendingNote) return;
+  const p=pendingNote; pendingNote=null; setNote(p.day,p.text);
+}
+$('#noteBox').addEventListener('input',ev=>{ pendingNote={day:cur,text:ev.target.value}; clearTimeout(noteT); noteT=setTimeout(flushNote,700); });
+$('#noteBox').addEventListener('blur',flushNote);
+window.addEventListener('pagehide',flushNote);
 
 let savedT;
 function flashSaved(){const s=$('#saved');s.classList.add('show');clearTimeout(savedT);savedT=setTimeout(()=>s.classList.remove('show'),1400)}
@@ -291,10 +334,12 @@ function renderLog(){
   });
   const n=answered(e);
   $('#progress').textContent = n===ALL_KEYS.length ? 'All 6 answered' : n ? `${n} of 6 answered` : '';
-  $('#delDay').hidden = !n;
+  $('#delDay').hidden = !n && !e.note;
+  const ta=$('#noteBox');
+  if(noteDay!==cur || document.activeElement!==ta){ ta.value=e.note||''; noteDay=cur; }
 }
 
-function goDay(d){ const t=today(); cur = d>t ? t : d; renderLog(); }
+function goDay(d){ flushNote(); const t=today(); cur = d>t ? t : d; renderLog(); }
 $('#prev').onclick=()=>goDay(addDays(cur,-1));
 $('#next').onclick=()=>goDay(addDays(cur,1));
 $('#datePick').onchange=e=>{ if(e.target.value) goDay(e.target.value) };
@@ -307,7 +352,7 @@ $('#delDay').onclick=()=>{
 /* ---------- TRENDS ---------- */
 function buildTrends(){
   $('#periods').innerHTML = PERIODS.map(([n,l])=>`<button data-p="${n}" aria-pressed="false">${l}</button>`).join('');
-  $('#periods').onclick=e=>{const b=e.target.closest('button'); if(!b) return; ui.period=+b.dataset.p; store(UI_KEY,ui); renderTrends()};
+  $('#periods').onclick=e=>{const b=e.target.closest('button'); if(!b) return; ui.period=+b.dataset.p; offset=0; store(UI_KEY,ui); renderTrends()};
   $('#toggles').innerHTML = B.map(b=>`<button class="tog" data-b="${b.key}" style="--c:var(--${b.key})" aria-pressed="false"><span class="sw"></span>${b.short}</button>`).join('');
   $('#toggles').onclick=e=>{const b=e.target.closest('.tog'); if(!b) return; ui[b.dataset.b]=!ui[b.dataset.b]; store(UI_KEY,ui); renderTrends()};
   $('#charts').innerHTML = Q.map(q=>`<div class="card chart" id="c-${q.key}">
@@ -319,21 +364,37 @@ function buildTrends(){
 }
 
 const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
-let chartState={};
+let chartState={}, offset=0;   // offset = how many whole periods back from today
 
 function renderTrends(){
   document.querySelectorAll('#periods button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.p===ui.period)));
   document.querySelectorAll('#toggles .tog').forEach(b=>b.setAttribute('aria-pressed',String(!!ui[b.dataset.b])));
-  const N=ui.period, t=today();
-  const days=[...Array(N)].map((_,i)=>addDays(t,i-N+1));
-  const logged=days.filter(d=>getEntry(d)).length;
+  const N=ui.period, end=addDays(today(),-offset*N);
+  const days=[...Array(N)].map((_,i)=>addDays(end,i-N+1));
+  const logged=days.filter(d=>answered(getEntry(d))).length;
   $('#coverage').textContent = `${logged} of ${N} days logged` + (N>31 ? ' · dots are daily answers, line is the 7-day average' : '');
+  // period browsing: ‹ › step by one whole period; ‹ stops once nothing older exists
+  let earliest=null;
+  for(const d in data.entries){ const e=data.entries[d]; if(e && !e.deleted && (earliest===null || d<earliest)) earliest=d }
+  $('#pRange').textContent = rangeLabel(days[0],days[N-1]);
+  $('#pPrev').disabled = earliest===null || earliest>=days[0];
+  $('#pNext').disabled = offset===0;
+  $('#pToday').hidden = offset===0;
+  // notes in this period, oldest first; tap one to jump to that day
+  const notes=days.map(d=>[d,getEntry(d)]).filter(([d,e])=>e && e.note);
+  $('#notesList').innerHTML = notes.length
+    ? `<div class="card noteslist"><h3>Notes in this period</h3>${notes.map(([d,e],k)=>`<button class="nrow${k?'':' first'}" data-d="${d}"><b>${fmt(d,{month:'short',day:'numeric'})}</b><span>${esc(e.note)}</span></button>`).join('')}</div>`
+    : '';
   Q.forEach(q=>drawChart(q,days));
+}
+function rangeLabel(a,b){
+  const sameYear=parse(a).getFullYear()===parse(b).getFullYear();
+  return `${fmt(a,sameYear?{month:'short',day:'numeric'}:{month:'short',day:'numeric',year:'numeric'})} – ${fmt(b,{month:'short',day:'numeric',year:'numeric'})}`;
 }
 
 function drawChart(q,days){
   const card=$('#c-'+q.key), plot=card.querySelector('.plot'), svg=plot.querySelector('svg');
-  const W=Math.max(260, plot.clientWidth||320), H=160, pl=20, pr=10, pt=8, pb=22;
+  const W=Math.max(260, plot.clientWidth||320), H=168, pl=20, pr=10, pt=15, pb=22;
   const iw=W-pl-pr, ih=H-pt-pb, N=days.length, step=iw/(N-1);
   const X=i=>pl+i*step, Y=v=>pt+ih-(v-q.min)/4*ih;
   const entries=days.map(getEntry);
@@ -386,6 +447,13 @@ function drawChart(q,days){
     vals.forEach((v,i)=>{ if(v!==null) s+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(v)}" r="${N>100?1.8:2.4}" fill="var(--accent)" opacity=".38"/>` });
     s+=`<path d="${path(ma)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   }
+  // note markers: a small pin at the top plus a faint guide line down the chart
+  entries.forEach((e,i)=>{
+    if(!e || !e.note) return;
+    const x=X(i).toFixed(1);
+    s+=`<line x1="${x}" x2="${x}" y1="${pt}" y2="${pt+ih}" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>`;
+    s+=`<path d="M${x-4.5} 1 L${+x+4.5} 1 L${x} 9.5 Z" fill="var(--text-2)"/>`;
+  });
   // hover layer
   s+=`<line class="xh" y1="${pt}" y2="${pt+ih}" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>`;
   s+=`<circle class="xd" r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>`;
@@ -417,16 +485,22 @@ function attachHover(q){
     const c=chartState[q.key]; if(!c) return;
     const svg=plot.querySelector('svg'), r=svg.getBoundingClientRect();
     const px=(ev.clientX-r.left)*(c.W/r.width);
-    const i=Math.max(0,Math.min(c.days.length-1,Math.round((px-c.pl)/c.step)));
+    let i=Math.max(0,Math.min(c.days.length-1,Math.round((px-c.pl)/c.step)));
+    if(c.step<5){ // crowded chart: let a touch near a noted day land on it
+      let best=-1, bd=8;
+      c.entries.forEach((en,k)=>{ if(en && en.note){ const dd=Math.abs(c.X(k)-px); if(dd<bd){bd=dd;best=k} } });
+      if(best>=0) i=best;
+    }
     const x=c.X(i), v=c.vals[i], e=c.entries[i];
     const xh=svg.querySelector('.xh'), xd=svg.querySelector('.xd');
     xh.setAttribute('x1',x); xh.setAttribute('x2',x); xh.setAttribute('visibility','visible');
     if(v!==null){ xd.setAttribute('cx',x); xd.setAttribute('cy',c.Y(v)); xd.setAttribute('visibility','visible') } else xd.setAttribute('visibility','hidden');
-    let h=`<b>${fmt(c.days[i],{weekday:'short',day:'numeric',month:'short'})}</b><br>${v===null?'Not logged':`${q.label}: ${v} · ${q.opts[v-q.min]}`}`;
+    let h=`<b>${fmt(c.days[i],{weekday:'short',day:'numeric',month:'short'})}</b><br>${v===null?(answered(e)?'Not answered':'Not logged'):`${q.label}: ${v} · ${q.opts[v-q.min]}`}`;
     if(e){
       const w=e.work, so=e.social;
       if(typeof w==='boolean') h+=`<br>9–5: ${w?'could':"couldn't"}`;
       if(typeof so==='boolean') h+=`<br>Plans: ${so?'would cancel':'fine'}`;
+      if(e.note) h+=`<div class="tnote">${esc(e.note)}</div>`;
     }
     tip.innerHTML=h; tip.style.display='block';
     const left=x*(r.width/c.W), tw=tip.offsetWidth;
@@ -517,9 +591,10 @@ async function shareOrDownload(name,text,type){
 }
 $('#expJson').onclick=()=>shareOrDownload(`checkin-${today()}.json`, canon(data), 'application/json');
 $('#expCsv').onclick=()=>{
-  const rows=[['date',...Q.map(q=>q.key),'could_do_9to5','would_cancel_plans']];
+  const cell=v=>/[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
+  const rows=[['date',...Q.map(q=>q.key),'could_do_9to5','would_cancel_plans','note']];
   Object.keys(data.entries).sort().forEach(d=>{const e=getEntry(d); if(!e) return;
-    rows.push([d,...Q.map(q=>e[q.key]??''),...B.map(b=>typeof e[b.key]==='boolean'?(e[b.key]?'yes':'no'):'')])});
+    rows.push([d,...Q.map(q=>e[q.key]??''),...B.map(b=>typeof e[b.key]==='boolean'?(e[b.key]?'yes':'no'):''),cell(e.note||'')])});
   shareOrDownload(`checkin-${today()}.csv`, rows.map(r=>r.join(',')).join('\n'), 'text/csv');
 };
 $('#impBtn').onclick=()=>$('#impFile').click();
@@ -535,6 +610,7 @@ $('#impFile').onchange=async e=>{
 /* ---------- tabs & lifecycle ---------- */
 let tab='log';
 function showTab(t){
+  flushNote();
   tab=t;
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='view-'+t));
   document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-current',String(b.dataset.tab===t)));
@@ -547,7 +623,7 @@ document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>showTab(b.
 function renderAll(){ renderLog(); if(tab==='trends') renderTrends(); }
 
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState!=='visible') return;
+  if(document.visibilityState!=='visible'){ flushNote(); return }
   const d=defaultDay(); if(cur===autoDay && d!==autoDay){ cur=d; } autoDay=d;
   renderAll(); sync();
 });
@@ -555,6 +631,11 @@ let rT; window.addEventListener('resize',()=>{clearTimeout(rT);rT=setTimeout(()=
 
 const standalone = window.navigator.standalone===true || matchMedia('(display-mode: standalone)').matches;
 if(!standalone && /iPhone|iPad/.test(navigator.userAgent)) $('#installBanner').style.display='block';
+
+$('#pPrev').onclick=()=>{ offset++; renderTrends() };
+$('#pNext').onclick=()=>{ offset=Math.max(0,offset-1); renderTrends() };
+$('#pToday').onclick=()=>{ offset=0; renderTrends() };
+$('#notesList').onclick=ev=>{ const b=ev.target.closest('.nrow'); if(!b) return; cur=b.dataset.d; showTab('log'); renderLog() };
 
 buildQuestions(); buildTrends(); renderLog(); pillIdle(); sync();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
