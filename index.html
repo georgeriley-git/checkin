@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Check-in">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111110" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Daily Check-in</title>
+<style>
+:root{
+  color-scheme: light dark;
+  --bg:#f4f3f0; --surface:#fcfcfb; --surface-2:#ecebe6; --border:#e2e1dc;
+  --text:#0b0b0b; --text-2:#52514e; --text-3:#85847e;
+  --accent:#2a78d6; --accent-ink:#fff; --accent-soft:#dbe8f8;
+  --work:#eb6834; --social:#4a3aa7;
+  --grid:#e6e5e0; --danger:#c43c3b; --ok:#1d8a4b;
+  --radius:16px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#111110; --surface:#1a1a19; --surface-2:#262624; --border:#2e2e2b;
+    --text:#ffffff; --text-2:#c3c2b7; --text-3:#8d8c84;
+    --accent:#3987e5; --accent-ink:#fff; --accent-soft:#1c3352;
+    --work:#d95926; --social:#9085e9;
+    --grid:#2a2a27; --danger:#e66767; --ok:#3fb97a;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text)}
+body{
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  padding:env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom));
+  min-height:100vh;
+}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+
+/* header */
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 0 6px}
+header h1{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:0}
+.pill{border:0;background:var(--surface-2);color:var(--text-2);font-size:13px;padding:6px 11px;border-radius:999px;display:flex;align-items:center;gap:6px}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--text-3);display:inline-block}
+.pill.ok i{background:var(--ok)} .pill.err i{background:var(--danger)} .pill.busy i{background:var(--accent);animation:pulse 1s infinite alternate}
+@keyframes pulse{to{opacity:.3}}
+
+/* views */
+.view{display:none} .view.on{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin:12px 0}
+.muted{color:var(--text-2)} .small{font-size:13px} .tiny{font-size:12px;color:var(--text-3)}
+
+/* day picker */
+.dayrow{display:flex;align-items:center;gap:8px;margin-top:4px}
+.nav{width:40px;height:40px;border-radius:12px;border:1px solid var(--border);background:var(--surface);font-size:20px;line-height:1;display:grid;place-items:center}
+.nav:disabled{opacity:.35}
+.daylabel{flex:1;text-align:center;position:relative}
+.daylabel b{display:block;font-size:18px}
+.daylabel span{font-size:13px;color:var(--text-2)}
+.daylabel input{position:absolute;inset:0;opacity:0;width:100%;height:100%}
+.strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:12px 0 4px}
+.chip{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:6px 0 7px;text-align:center}
+.chip small{display:block;font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em}
+.chip b{display:block;font-size:16px;font-weight:600}
+.chip i{display:block;width:6px;height:6px;border-radius:50%;margin:3px auto 0;background:transparent;border:1.5px solid var(--border)}
+.chip.done i{background:var(--ok);border-color:var(--ok)}
+.chip.part i{border-color:var(--ok)}
+.chip.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+
+/* questions */
+.q h3{margin:0 0 10px;font-size:16px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.q h3 span{font-weight:400;font-size:13px;color:var(--text-3)}
+.opts{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.opts.two{grid-template-columns:1fr 1fr}
+.opt{border:1px solid var(--border);background:var(--surface-2);border-radius:12px;padding:8px 2px;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.opt b{font-size:17px;font-weight:600}
+.opt small{font-size:11px;line-height:1.15;color:var(--text-2);text-align:center}
+.opts.two .opt{min-height:48px;font-weight:600}
+.opt[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.opt[aria-pressed=true] small{color:var(--accent-ink);opacity:.9}
+.savebar{display:flex;justify-content:space-between;align-items:center;margin:6px 2px 0;min-height:24px}
+.linkbtn{border:0;background:none;color:var(--danger);font-size:14px;padding:6px 0}
+.saved{color:var(--ok);font-size:14px;font-weight:600;opacity:0;transition:opacity .25s}
+.saved.show{opacity:1}
+
+/* trends */
+.seg{display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface-2);border-radius:12px;padding:3px;gap:3px;margin-top:6px}
+.seg button{border:0;background:none;border-radius:9px;padding:8px 0;font-size:14px;font-weight:600;color:var(--text-2)}
+.seg button[aria-pressed=true]{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.toggles{display:flex;gap:8px;margin:10px 0 2px;flex-wrap:wrap}
+.tog{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:7px 12px 7px 10px;font-size:14px;display:flex;align-items:center;gap:7px}
+.tog .sw{width:14px;height:14px;border-radius:4px;border:2px solid var(--c);background:transparent}
+.tog[aria-pressed=true]{border-color:var(--c)}
+.tog[aria-pressed=true] .sw{background:var(--c)}
+.chart h3{margin:0;font-size:16px;font-weight:600}
+.chart .sub{display:flex;justify-content:space-between;gap:8px;margin:2px 0 6px}
+.plot{position:relative;touch-action:pan-y}
+.plot svg{display:block;width:100%;overflow:visible}
+.tip{position:absolute;top:-4px;pointer-events:none;background:var(--text);color:var(--bg);font-size:12px;line-height:1.35;padding:6px 8px;border-radius:8px;white-space:nowrap;transform:translateY(-100%);display:none;z-index:2}
+.stats{margin-top:6px;font-size:13px;color:var(--text-2)}
+.stats div{display:flex;align-items:center;gap:6px;margin-top:3px}
+.stats .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.empty{padding:24px 8px;text-align:center;color:var(--text-3);font-size:14px}
+
+/* settings */
+label.f{display:block;margin:10px 0}
+label.f span{display:block;font-size:13px;color:var(--text-2);margin-bottom:4px}
+label.f input{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);font-size:16px}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:13px;font-weight:600;font-size:16px;background:var(--accent);color:var(--accent-ink);margin-top:10px}
+.btn.sec{background:var(--surface-2);color:var(--text)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.card h2{font-size:17px;margin:0 0 4px}
+.card p{margin:6px 0}
+
+/* tab bar */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--border);padding:6px 0 calc(6px + env(safe-area-inset-bottom));display:flex;justify-content:center;z-index:5}
+nav.tabs .in{display:grid;grid-template-columns:repeat(3,1fr);width:100%;max-width:560px}
+nav.tabs button{border:0;background:none;padding:4px 0;font-size:11px;font-weight:600;color:var(--text-3);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.tabs button svg{width:26px;height:26px}
+nav.tabs button[aria-current=true]{color:var(--accent)}
+.banner{background:var(--accent-soft);border-radius:12px;padding:10px 12px;font-size:14px;margin-top:8px;display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">Check-in</h1>
+    <button class="pill" id="syncPill"><i></i><span>Backup off</span></button>
+  </header>
+  <div class="banner" id="installBanner">To install: tap <b>Share</b> → <b>Add to Home Screen</b>, then use the home-screen icon from now on.</div>
+
+  <!-- LOG -->
+  <section class="view on" id="view-log">
+    <div class="dayrow">
+      <button class="nav" id="prev" aria-label="Previous day">‹</button>
+      <div class="daylabel"><b id="dayLabel">Today</b><span id="daySub"></span>
+        <input type="date" id="datePick" aria-label="Pick a date"></div>
+      <button class="nav" id="next" aria-label="Next day">›</button>
+    </div>
+    <div class="strip" id="strip"></div>
+    <div id="questions"></div>
+    <div class="savebar">
+      <button class="linkbtn" id="delDay" hidden>Clear this day</button>
+      <span class="small muted" id="progress"></span>
+      <span class="saved" id="saved">Saved ✓</span>
+    </div>
+  </section>
+
+  <!-- TRENDS -->
+  <section class="view" id="view-trends">
+    <div class="seg" id="periods"></div>
+    <div class="toggles" id="toggles"></div>
+    <div class="tiny" id="coverage"></div>
+    <div id="charts"></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="view" id="view-settings">
+    <div class="card">
+      <h2>Backup to GitHub</h2>
+      <p class="small muted">Saves your entries to <b>data.json</b> in a private GitHub repo after every change, and pulls from it when the app opens.</p>
+      <label class="f"><span>GitHub username</span><input id="sOwner" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+      <label class="f"><span>Private data repo</span><input id="sRepo" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+      <label class="f"><span>Access token</span><input id="sToken" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="github_pat_…"></label>
+      <button class="btn" id="saveSync">Save &amp; back up now</button>
+      <p class="small" id="syncMsg"></p>
+    </div>
+    <div class="card">
+      <h2>Export &amp; import</h2>
+      <p class="small muted">A manual copy of everything, as a backup or for a spreadsheet.</p>
+      <div class="row2">
+        <button class="btn sec" id="expJson">Export JSON</button>
+        <button class="btn sec" id="expCsv">Export CSV</button>
+      </div>
+      <button class="btn sec" id="impBtn">Import JSON</button>
+      <input type="file" id="impFile" accept="application/json,.json" hidden>
+      <p class="small" id="impMsg"></p>
+    </div>
+    <div class="card">
+      <h2>9pm reminder</h2>
+      <p class="small muted">The daily notification comes from the free <b>ntfy</b> app. It's scheduled by a GitHub Action in this app's repo, so nothing here needs to be open.</p>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs"><div class="in">
+  <button data-tab="log" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="17" rx="3"/><path d="M8 2.5v3M16 2.5v3M8.5 13l2.5 2.5 4.5-5"/></svg>Log</button>
+  <button data-tab="trends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M4 15l5-5 4 3 7-7"/></svg>Trends</button>
+  <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
+</div></nav>
+
+<script>
+'use strict';
+/* ---------- questions ---------- */
+const Q = [
+  {key:'fatigue', label:'Fatigue', min:0, opts:['None','Mild','Moderate','Severe','Unbearable']},
+  {key:'energy',  label:'Energy',  min:1, opts:['Very low','Low','OK','High','Very high']},
+  {key:'sleep',   label:'Sleep',   min:1, opts:['Awful','Poor','OK','Good','Great']},
+  {key:'stress',  label:'Stress',  min:0, opts:['None','A little','Moderate','A lot','Extreme']},
+];
+// "bad" = the answer that gets shaded on the charts
+const B = [
+  {key:'work',   label:'Could you have performed your 9 to 5 properly today?', short:"Couldn't do 9–5", bad:false, other:'could'},
+  {key:'social', label:'Would you have had to cancel social plans tonight?',   short:'Would cancel plans', bad:true, other:"wouldn't"},
+];
+const ALL_KEYS = [...Q.map(q=>q.key), ...B.map(b=>b.key)];
+const PERIODS = [[30,'30D'],[90,'90D'],[182,'6M'],[365,'1Y']];
+
+/* ---------- storage ---------- */
+const DATA_KEY='checkin.data.v1', SET_KEY='checkin.settings.v1', UI_KEY='checkin.ui.v1';
+const $=s=>document.querySelector(s);
+function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+let data = load(DATA_KEY,{entries:{}}); if(!data || !data.entries) data={entries:{}};
+const ghOwner = location.hostname.endsWith('.github.io') ? location.hostname.split('.')[0] : '';
+let settings = Object.assign({owner:ghOwner, repo:'symptom-data', path:'data.json', token:'', lastSync:0}, load(SET_KEY,{}));
+let ui = Object.assign({period:30, work:false, social:false}, load(UI_KEY,{}));
+const persist=()=>store(DATA_KEY,data);
+
+/* ---------- dates (local) ---------- */
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return ymd(d)};
+const today=()=>ymd(new Date());
+const defaultDay=()=>{const d=new Date(); if(d.getHours()<4) d.setDate(d.getDate()-1); return ymd(d)}; // after midnight still counts as "tonight"
+const fmt=(s,o)=>parse(s).toLocaleDateString(undefined,o);
+
+function getEntry(day){const e=data.entries[day]; return e && !e.deleted ? e : null}
+function answered(e){return e ? ALL_KEYS.filter(k=>e[k]!==undefined && e[k]!==null).length : 0}
+
+/* ---------- LOG ---------- */
+let cur = defaultDay(), autoDay = cur;
+
+function buildQuestions(){
+  const wrap=$('#questions'); let h='';
+  for(const q of Q){
+    h+=`<div class="card q"><h3>${q.label}<span>${q.min} ${q.opts[0].toLowerCase()} → ${q.min+4} ${q.opts[4].toLowerCase()}</span></h3><div class="opts">`;
+    q.opts.forEach((o,i)=>{h+=`<button class="opt" data-k="${q.key}" data-v="${q.min+i}" aria-pressed="false"><b>${q.min+i}</b><small>${o}</small></button>`});
+    h+=`</div></div>`;
+  }
+  for(const b of B){
+    h+=`<div class="card q"><h3 style="display:block">${b.label}</h3><div class="opts two">
+      <button class="opt" data-k="${b.key}" data-v="true" aria-pressed="false">Yes</button>
+      <button class="opt" data-k="${b.key}" data-v="false" aria-pressed="false">No</button></div></div>`;
+  }
+  wrap.innerHTML=h;
+  wrap.addEventListener('click',ev=>{
+    const btn=ev.target.closest('.opt'); if(!btn) return;
+    const k=btn.dataset.k; const v=JSON.parse(btn.dataset.v);
+    const e=getEntry(cur)||{};
+    setField(cur,k, e[k]===v ? undefined : v); // tap again to clear
+  });
+}
+
+function setField(day,key,val){
+  const e=Object.assign({},getEntry(day)||{}); delete e.deleted;
+  if(val===undefined) delete e[key]; else e[key]=val;
+  e.updated=Date.now();
+  data.entries[day] = answered(e) ? e : {deleted:true, updated:e.updated};
+  persist(); renderLog(); flashSaved(); scheduleSync();
+}
+
+let savedT;
+function flashSaved(){const s=$('#saved');s.classList.add('show');clearTimeout(savedT);savedT=setTimeout(()=>s.classList.remove('show'),1400)}
+
+function renderLog(){
+  const t=today();
+  $('#dayLabel').textContent = cur===t ? 'Today' : cur===addDays(t,-1) ? 'Yesterday' : fmt(cur,{weekday:'long'});
+  $('#daySub').textContent = fmt(cur,{weekday:'short',day:'numeric',month:'long',year:'numeric'});
+  $('#next').disabled = cur>=t;
+  const dp=$('#datePick'); dp.max=t; dp.value=cur;
+  // 7-day strip around the selected day
+  let end=addDays(cur,3); if(end>t) end=t;
+  let s='';
+  for(let i=6;i>=0;i--){
+    const d=addDays(end,-i), n=answered(getEntry(d));
+    const cls = n===ALL_KEYS.length?'done':n?'part':'';
+    s+=`<button class="chip ${cls} ${d===cur?'sel':''}" data-d="${d}"><small>${fmt(d,{weekday:'short'}).slice(0,3)}</small><b>${parse(d).getDate()}</b><i></i></button>`;
+  }
+  $('#strip').innerHTML=s;
+  const e=getEntry(cur)||{};
+  document.querySelectorAll('#questions .opt').forEach(b=>{
+    b.setAttribute('aria-pressed', String(e[b.dataset.k]===JSON.parse(b.dataset.v)));
+  });
+  const n=answered(e);
+  $('#progress').textContent = n===ALL_KEYS.length ? 'All 6 answered' : n ? `${n} of 6 answered` : '';
+  $('#delDay').hidden = !n;
+}
+
+function goDay(d){ const t=today(); cur = d>t ? t : d; renderLog(); }
+$('#prev').onclick=()=>goDay(addDays(cur,-1));
+$('#next').onclick=()=>goDay(addDays(cur,1));
+$('#datePick').onchange=e=>{ if(e.target.value) goDay(e.target.value) };
+$('#strip').onclick=e=>{const c=e.target.closest('.chip'); if(c) goDay(c.dataset.d)};
+$('#delDay').onclick=()=>{
+  if(!confirm(`Clear all answers for ${fmt(cur,{day:'numeric',month:'long'})}?`)) return;
+  data.entries[cur]={deleted:true,updated:Date.now()}; persist(); renderLog(); scheduleSync();
+};
+
+/* ---------- TRENDS ---------- */
+function buildTrends(){
+  $('#periods').innerHTML = PERIODS.map(([n,l])=>`<button data-p="${n}" aria-pressed="false">${l}</button>`).join('');
+  $('#periods').onclick=e=>{const b=e.target.closest('button'); if(!b) return; ui.period=+b.dataset.p; store(UI_KEY,ui); renderTrends()};
+  $('#toggles').innerHTML = B.map(b=>`<button class="tog" data-b="${b.key}" style="--c:var(--${b.key})" aria-pressed="false"><span class="sw"></span>${b.short}</button>`).join('');
+  $('#toggles').onclick=e=>{const b=e.target.closest('.tog'); if(!b) return; ui[b.dataset.b]=!ui[b.dataset.b]; store(UI_KEY,ui); renderTrends()};
+  $('#charts').innerHTML = Q.map(q=>`<div class="card chart" id="c-${q.key}">
+      <h3>${q.label}</h3>
+      <div class="sub tiny"><span>${q.min} = ${q.opts[0].toLowerCase()} · ${q.min+4} = ${q.opts[4].toLowerCase()}</span><span class="note"></span></div>
+      <div class="plot"><div class="tip"></div><svg></svg></div>
+      <div class="stats"></div></div>`).join('');
+  Q.forEach(q=>attachHover(q));
+}
+
+const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+let chartState={};
+
+function renderTrends(){
+  document.querySelectorAll('#periods button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.p===ui.period)));
+  document.querySelectorAll('#toggles .tog').forEach(b=>b.setAttribute('aria-pressed',String(!!ui[b.dataset.b])));
+  const N=ui.period, t=today();
+  const days=[...Array(N)].map((_,i)=>addDays(t,i-N+1));
+  const logged=days.filter(d=>getEntry(d)).length;
+  $('#coverage').textContent = `${logged} of ${N} days logged` + (N>31 ? ' · dots are daily answers, line is the 7-day average' : '');
+  Q.forEach(q=>drawChart(q,days));
+}
+
+function drawChart(q,days){
+  const card=$('#c-'+q.key), plot=card.querySelector('.plot'), svg=plot.querySelector('svg');
+  const W=Math.max(260, plot.clientWidth||320), H=160, pl=20, pr=10, pt=8, pb=22;
+  const iw=W-pl-pr, ih=H-pt-pb, N=days.length, step=iw/(N-1);
+  const X=i=>pl+i*step, Y=v=>pt+ih-(v-q.min)/4*ih;
+  const entries=days.map(getEntry);
+  const vals=entries.map(e=>e&&typeof e[q.key]==='number'?e[q.key]:null);
+  const dense=N>31;
+  let s='';
+
+  // overlay bands for the "bad" binary answers (runs of consecutive days merged)
+  const on=B.filter(b=>ui[b.key]);
+  on.forEach((b,bi)=>{
+    const y0 = on.length===2 ? pt+bi*ih/2 : pt, h = on.length===2 ? ih/2 : ih;
+    let i=0;
+    while(i<N){
+      if(entries[i] && entries[i][b.key]===b.bad){
+        let j=i; while(j+1<N && entries[j+1] && entries[j+1][b.key]===b.bad) j++;
+        const x1=Math.max(pl,X(i)-step/2), x2=Math.min(pl+iw,X(j)+step/2);
+        s+=`<rect x="${x1.toFixed(1)}" y="${y0}" width="${Math.max(1.5,x2-x1).toFixed(1)}" height="${h}" fill="var(--${b.key})" opacity="${on.length===2?.3:.22}"/>`;
+        i=j+1;
+      } else i++;
+    }
+  });
+
+  // grid + y labels
+  for(let v=q.min; v<=q.min+4; v++){
+    s+=`<line x1="${pl}" x2="${pl+iw}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)" stroke-width="1"/>`;
+    s+=`<text x="${pl-7}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="var(--text-3)">${v}</text>`;
+  }
+  // x ticks
+  const ticks=[];
+  if(N<=31){ for(let i=N-1;i>=0;i-=7) ticks.push([i,fmt(days[i],{month:'short',day:'numeric'})]); }
+  else {
+    const months=days.map((d,i)=>[d,i]).filter(([d])=>d.endsWith('-01'));
+    const every = N>200 ? 2 : 1;
+    months.forEach(([d,i],k)=>{ if((months.length-1-k)%every===0) ticks.push([i,fmt(d,{month:'short'})]) });
+  }
+  for(const [i,l] of ticks){
+    const x=Math.min(Math.max(X(i),pl+16),W-18);
+    s+=`<text x="${x}" y="${H-5}" text-anchor="middle" font-size="11" fill="var(--text-3)">${l}</text>`;
+  }
+
+  // data
+  const path=arr=>{let d='',pen=false;arr.forEach((v,i)=>{if(v===null){pen=false;return}d+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1);pen=true});return d};
+  if(!dense){
+    s+=`<path d="${path(vals)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    vals.forEach((v,i)=>{ if(v!==null) s+=`<circle cx="${X(i)}" cy="${Y(v)}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>` });
+  } else {
+    // 7-day trailing average, using days before the window too
+    const all=[...Array(6)].map((_,k)=>getEntry(addDays(days[0],k-6))).concat(entries).map(e=>e&&typeof e[q.key]==='number'?e[q.key]:null);
+    const ma=vals.map((_,i)=>{const w=all.slice(i,i+7).filter(v=>v!==null);return w.length>=2?avg(w):null});
+    vals.forEach((v,i)=>{ if(v!==null) s+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(v)}" r="${N>100?1.8:2.4}" fill="var(--accent)" opacity=".38"/>` });
+    s+=`<path d="${path(ma)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  // hover layer
+  s+=`<line class="xh" y1="${pt}" y2="${pt+ih}" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>`;
+  s+=`<circle class="xd" r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>`;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`); svg.setAttribute('height',H);
+  svg.innerHTML=s;
+  chartState[q.key]={days,entries,vals,X,Y,step,pl,iw,W};
+
+  // stats
+  const have=vals.filter(v=>v!==null);
+  let st='';
+  if(!have.length){ st=`<div>No answers in this period yet.</div>` }
+  else {
+    const a=avg(have);
+    st+=`<div>Average <b>${a.toFixed(1)}</b>&nbsp;(${q.opts[Math.round(a-q.min)].toLowerCase()}) over ${have.length} day${have.length>1?'s':''}</div>`;
+    for(const b of on){
+      const bad=[],good=[];
+      entries.forEach((e,i)=>{ if(!e||vals[i]===null||typeof e[b.key]!=='boolean') return; (e[b.key]===b.bad?bad:good).push(vals[i]) });
+      if(!bad.length && !good.length) continue;
+      const f=x=>x.length?avg(x).toFixed(1):'–';
+      st+=`<div><span class="sw" style="background:var(--${b.key})"></span><span>${b.short}: <b>${f(bad)}</b> (${bad.length}d) · other days: <b>${f(good)}</b> (${good.length}d)</span></div>`;
+    }
+  }
+  card.querySelector('.stats').innerHTML=st;
+}
+
+function attachHover(q){
+  const card=$('#c-'+q.key), plot=card.querySelector('.plot'), tip=plot.querySelector('.tip');
+  const show=ev=>{
+    const c=chartState[q.key]; if(!c) return;
+    const svg=plot.querySelector('svg'), r=svg.getBoundingClientRect();
+    const px=(ev.clientX-r.left)*(c.W/r.width);
+    const i=Math.max(0,Math.min(c.days.length-1,Math.round((px-c.pl)/c.step)));
+    const x=c.X(i), v=c.vals[i], e=c.entries[i];
+    const xh=svg.querySelector('.xh'), xd=svg.querySelector('.xd');
+    xh.setAttribute('x1',x); xh.setAttribute('x2',x); xh.setAttribute('visibility','visible');
+    if(v!==null){ xd.setAttribute('cx',x); xd.setAttribute('cy',c.Y(v)); xd.setAttribute('visibility','visible') } else xd.setAttribute('visibility','hidden');
+    let h=`<b>${fmt(c.days[i],{weekday:'short',day:'numeric',month:'short'})}</b><br>${v===null?'Not logged':`${q.label}: ${v} · ${q.opts[v-q.min]}`}`;
+    if(e){
+      const w=e.work, so=e.social;
+      if(typeof w==='boolean') h+=`<br>9–5: ${w?'could':"couldn't"}`;
+      if(typeof so==='boolean') h+=`<br>Plans: ${so?'would cancel':'fine'}`;
+    }
+    tip.innerHTML=h; tip.style.display='block';
+    const left=x*(r.width/c.W), tw=tip.offsetWidth;
+    tip.style.left=Math.max(0,Math.min(r.width-tw,left-tw/2))+'px';
+  };
+  const hide=()=>{ tip.style.display='none'; const svg=plot.querySelector('svg'); svg.querySelectorAll('.xh,.xd').forEach(n=>n.setAttribute('visibility','hidden')) };
+  plot.addEventListener('pointerdown',show);
+  plot.addEventListener('pointermove',ev=>{ if(ev.pointerType==='mouse'||ev.buttons) show(ev) });
+  plot.addEventListener('pointerleave',ev=>{ if(ev.pointerType==='mouse') hide() });
+  document.addEventListener('pointerdown',ev=>{ if(!plot.contains(ev.target)) hide() });
+}
+
+/* ---------- GitHub backup ---------- */
+function b64enc(str){const b=new TextEncoder().encode(str);let s='';for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(s)}
+function b64dec(s){const bin=atob(s.replace(/\s/g,''));const b=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)b[i]=bin.charCodeAt(i);return new TextDecoder().decode(b)}
+function merge(a,b){
+  const out={entries:{}}; const ea=(a&&a.entries)||{}, eb=(b&&b.entries)||{};
+  for(const d of new Set([...Object.keys(ea),...Object.keys(eb)])){
+    const x=ea[d], y=eb[d];
+    out.entries[d] = !x ? y : !y ? x : ((y.updated||0) > (x.updated||0) ? y : x);
+  }
+  return out;
+}
+const canon=o=>JSON.stringify({entries:Object.fromEntries(Object.keys(o.entries||{}).sort().map(k=>[k,o.entries[k]]))},null,1);
+const configured=()=>settings.owner && settings.repo && settings.token;
+
+function setPill(state,text){const p=$('#syncPill');p.className='pill '+state;p.querySelector('span').textContent=text}
+function pillIdle(){ if(!configured()) setPill('','Backup off'); else if(settings.lastSync) setPill('ok','Backed up'); else setPill('','Not backed up') }
+
+let syncing=false, syncAgain=false, syncT;
+function scheduleSync(){ if(!configured()) return; clearTimeout(syncT); syncT=setTimeout(sync,2000) }
+
+async function sync(manual){
+  if(!configured()){ pillIdle(); return }
+  if(syncing){ syncAgain=true; return }
+  syncing=true; setPill('busy','Backing up…');
+  const url=`https://api.github.com/repos/${encodeURIComponent(settings.owner)}/${encodeURIComponent(settings.repo)}/contents/${settings.path}`;
+  const headers={Authorization:`Bearer ${settings.token}`, Accept:'application/vnd.github+json', 'X-GitHub-Api-Version':'2022-11-28'};
+  try{
+    for(let attempt=0; attempt<3; attempt++){
+      let remote={entries:{}}, sha;
+      const r=await fetch(url,{headers,cache:'no-store'});
+      if(r.status===404){ /* first backup */ }
+      else if(!r.ok) throw new Error(r.status===401?'The token was rejected (expired or mistyped?)':r.status===403?'The token can’t access that repo':`GitHub said ${r.status}`);
+      else { const j=await r.json(); sha=j.sha; remote=JSON.parse(b64dec(j.content)); }
+      const merged=merge(data,remote);
+      if(canon(merged)!==canon(data)){ data=merged; persist(); renderAll(); }
+      if(canon(merged)===canon(remote)) break;
+      const body={message:`Check-in update ${new Date().toISOString().slice(0,16)}`, content:b64enc(canon(merged))};
+      if(sha) body.sha=sha;
+      const p=await fetch(url,{method:'PUT',headers,body:JSON.stringify(body)});
+      if(p.ok) break;
+      if(p.status===409||p.status===422) continue; // changed underneath us; re-pull and retry
+      if(p.status===404) throw new Error('Repo not found. Check the username/repo, and that the token has access to it');
+      throw new Error(p.status===403?'The token needs Contents: Read and write on that repo':`GitHub said ${p.status}`);
+    }
+    settings.lastSync=Date.now(); store(SET_KEY,settings);
+    pillIdle(); $('#syncMsg').textContent = 'Last backed up '+new Date(settings.lastSync).toLocaleString();
+    $('#syncMsg').style.color='var(--ok)';
+  }catch(err){
+    const msg = err instanceof TypeError ? 'No connection; will retry next time' : err.message;
+    setPill('err', err instanceof TypeError ? 'Offline' : 'Backup error');
+    $('#syncMsg').textContent=msg; $('#syncMsg').style.color='var(--danger)';
+  }finally{
+    syncing=false; if(syncAgain){ syncAgain=false; scheduleSync() }
+  }
+}
+
+/* ---------- settings ---------- */
+function renderSettings(){
+  $('#sOwner').value=settings.owner; $('#sRepo').value=settings.repo; $('#sToken').value=settings.token;
+  if(settings.lastSync && configured()){ $('#syncMsg').textContent='Last backed up '+new Date(settings.lastSync).toLocaleString(); $('#syncMsg').style.color='var(--text-2)' }
+}
+$('#saveSync').onclick=()=>{
+  const owner=$('#sOwner').value.trim(), repo=$('#sRepo').value.trim(), token=$('#sToken').value.trim();
+  if(owner!==settings.owner||repo!==settings.repo) settings.lastSync=0;
+  Object.assign(settings,{owner,repo,token}); store(SET_KEY,settings);
+  if(!configured()){ $('#syncMsg').textContent='Fill in all three fields to turn on backup.'; $('#syncMsg').style.color='var(--text-2)'; pillIdle(); return }
+  sync(true);
+};
+$('#syncPill').onclick=()=>showTab('settings');
+
+async function shareOrDownload(name,text,type){
+  const file=new File([text],name,{type});
+  try{ if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file]}); return } }catch(e){ if(e.name==='AbortError') return }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+$('#expJson').onclick=()=>shareOrDownload(`checkin-${today()}.json`, canon(data), 'application/json');
+$('#expCsv').onclick=()=>{
+  const rows=[['date',...Q.map(q=>q.key),'could_do_9to5','would_cancel_plans']];
+  Object.keys(data.entries).sort().forEach(d=>{const e=getEntry(d); if(!e) return;
+    rows.push([d,...Q.map(q=>e[q.key]??''),...B.map(b=>typeof e[b.key]==='boolean'?(e[b.key]?'yes':'no'):'')])});
+  shareOrDownload(`checkin-${today()}.csv`, rows.map(r=>r.join(',')).join('\n'), 'text/csv');
+};
+$('#impBtn').onclick=()=>$('#impFile').click();
+$('#impFile').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{ const j=JSON.parse(await f.text()); if(!j.entries) throw 0;
+    const before=Object.keys(data.entries).length; data=merge(data,j); persist(); renderAll(); scheduleSync();
+    $('#impMsg').textContent=`Imported. ${Object.keys(data.entries).length-before} new day(s) added.`; $('#impMsg').style.color='var(--ok)';
+  }catch(err){ $('#impMsg').textContent='That file doesn’t look like a Check-in export.'; $('#impMsg').style.color='var(--danger)' }
+  e.target.value='';
+};
+
+/* ---------- tabs & lifecycle ---------- */
+let tab='log';
+function showTab(t){
+  tab=t;
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='view-'+t));
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-current',String(b.dataset.tab===t)));
+  $('#title').textContent = t==='log'?'Check-in':t==='trends'?'Trends':'Settings';
+  if(t==='trends') renderTrends();
+  if(t==='settings') renderSettings();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+function renderAll(){ renderLog(); if(tab==='trends') renderTrends(); }
+
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible') return;
+  const d=defaultDay(); if(cur===autoDay && d!==autoDay){ cur=d; } autoDay=d;
+  renderAll(); sync();
+});
+let rT; window.addEventListener('resize',()=>{clearTimeout(rT);rT=setTimeout(()=>{if(tab==='trends')renderTrends()},150)});
+
+const standalone = window.navigator.standalone===true || matchMedia('(display-mode: standalone)').matches;
+if(!standalone && /iPhone|iPad/.test(navigator.userAgent)) $('#installBanner').style.display='block';
+
+buildQuestions(); buildTrends(); renderLog(); pillIdle(); sync();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
