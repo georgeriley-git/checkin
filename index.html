@@ -109,15 +109,10 @@ header h1{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:0}
 .empty{padding:24px 8px;text-align:center;color:var(--text-3);font-size:14px}
 
 /* crash time */
-.timewrap{position:relative;display:block;flex:1}
-.timein{display:block;width:100%;min-height:48px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);font-size:17px;font-weight:600;-webkit-appearance:none;appearance:none;text-align:left}
-.timein::-webkit-date-and-time-value{text-align:left}
-.timein.empty{color:transparent}
-.tph{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:15px;pointer-events:none}
-.timewrap:focus-within .tph{display:none}
-.timewrap:focus-within .timein.empty{color:inherit}
-.crashrow{display:flex;align-items:center;gap:12px}
-.crashrow .linkbtn{flex:none}
+.opts.hours{grid-template-columns:repeat(7,1fr);gap:5px}
+.opts.hours .opt{min-height:48px;padding:6px 0}
+.opts.hours .opt b{font-size:16px}
+.qhint{font-size:13px;color:var(--text-3);margin:-4px 0 10px}
 .tog .sw.dia{border-radius:2px;transform:rotate(45deg) scale(.82)}
 .stats .sw.dia{border-radius:2px;transform:rotate(45deg) scale(.8)}
 
@@ -172,10 +167,8 @@ nav.tabs button[aria-current=true]{color:var(--accent)}
     <div class="strip" id="strip"></div>
     <div id="questions"></div>
     <div class="card q"><h3 style="display:block">If you crashed today, what time?</h3>
-      <div class="crashrow">
-        <label class="timewrap"><input type="time" id="crashBox" class="timein empty" aria-label="Crash time"><span class="tph">No crash · tap to set a time</span></label>
-        <button class="linkbtn" id="crashClear" hidden>Clear</button>
-      </div></div>
+      <p class="qhint">Leave blank if you didn't crash. Tap again to clear.</p>
+      <div class="opts hours" id="crashHours"></div></div>
     <div class="card q"><h3>Note <span>optional · shows on the charts</span></h3>
       <textarea id="noteBox" class="noteta" rows="2" maxlength="280" placeholder="e.g. started steroids today"></textarea></div>
     <div class="savebar">
@@ -314,7 +307,7 @@ function setField(day,key,val){
 }
 
 /* notes: saved shortly after typing stops, and always before leaving the day/tab */
-let noteT, pendingNote=null, noteDay=null, crashDay=null;
+let noteT, pendingNote=null, noteDay=null;
 function setNote(day,text){
   text=text.trim();
   const prev=getEntry(day)||{};
@@ -340,16 +333,15 @@ function crashStart(){
   for(const d in data.entries){ const e=data.entries[d]; if(e && !e.deleted && e.crash && d<s) s=d }
   return s;
 }
-function onCrash(){
-  const cb=$('#crashBox'), v=cb.value;
-  cb.classList.toggle('empty',!v);
-  const val=/^\d{2}:\d{2}$/.test(v) ? v : undefined;
-  if(((getEntry(cur)||{}).crash) === val) return;
-  setField(cur,'crash',val);
-}
-$('#crashBox').addEventListener('input',onCrash);
-$('#crashBox').addEventListener('change',onCrash);
-$('#crashClear').onclick=()=>{ $('#crashBox').value=''; onCrash(); };
+// hour buttons 9am–9pm; stored as "HH:00". Older entries with minutes highlight the nearest hour.
+const crashHour=s=>{ const t=tmin(s); return t===null ? null : Math.min(21,Math.max(9,Math.round(t/60))) };
+$('#crashHours').innerHTML=[...Array(13)].map((_,k)=>{ const h=9+k;
+  return `<button class="opt" data-h="${h}" aria-pressed="false" aria-label="${h%12||12}${h<12?'am':'pm'}"><b>${h%12||12}</b><small>${h<12?'am':'pm'}</small></button>` }).join('');
+$('#crashHours').onclick=ev=>{
+  const b=ev.target.closest('.opt'); if(!b) return;
+  const h=+b.dataset.h, prev=(getEntry(cur)||{}).crash;
+  setField(cur,'crash', crashHour(prev)===h ? undefined : String(h).padStart(2,'0')+':00');
+};
 
 let savedT;
 function flashSaved(){const s=$('#saved');s.classList.add('show');clearTimeout(savedT);savedT=setTimeout(()=>s.classList.remove('show'),1400)}
@@ -378,10 +370,8 @@ function renderLog(){
   $('#delDay').hidden = !n && !e.note && !e.crash;
   const ta=$('#noteBox');
   if(noteDay!==cur || document.activeElement!==ta){ ta.value=e.note||''; noteDay=cur; }
-  const cb=$('#crashBox');
-  if(crashDay!==cur || document.activeElement!==cb){ cb.value=e.crash||''; crashDay=cur; }
-  cb.classList.toggle('empty',!cb.value);
-  $('#crashClear').hidden=!e.crash;
+  const ch=crashHour(e.crash);
+  document.querySelectorAll('#crashHours .opt').forEach(b=>b.setAttribute('aria-pressed', String(+b.dataset.h===ch)));
 }
 
 function goDay(d){ flushNote(); const t=today(); cur = d>t ? t : d; renderLog(); }
