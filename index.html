@@ -19,7 +19,7 @@
   --bg:#f4f3f0; --surface:#fcfcfb; --surface-2:#ecebe6; --border:#e2e1dc;
   --text:#0b0b0b; --text-2:#52514e; --text-3:#85847e;
   --accent:#2a78d6; --accent-ink:#fff; --accent-soft:#dbe8f8;
-  --work:#eb6834; --social:#4a3aa7;
+  --work:#eb6834; --social:#4a3aa7; --crash:#1baf7a;
   --grid:#e6e5e0; --danger:#c43c3b; --ok:#1d8a4b;
   --radius:16px;
 }
@@ -28,7 +28,7 @@
     --bg:#111110; --surface:#1a1a19; --surface-2:#262624; --border:#2e2e2b;
     --text:#ffffff; --text-2:#c3c2b7; --text-3:#8d8c84;
     --accent:#3987e5; --accent-ink:#fff; --accent-soft:#1c3352;
-    --work:#d95926; --social:#9085e9;
+    --work:#d95926; --social:#9085e9; --crash:#199e70;
     --grid:#2a2a27; --danger:#e66767; --ok:#3fb97a;
   }
 }
@@ -108,6 +108,19 @@ header h1{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:0}
 .stats .sw{width:10px;height:10px;border-radius:3px;flex:none}
 .empty{padding:24px 8px;text-align:center;color:var(--text-3);font-size:14px}
 
+/* crash time */
+.timewrap{position:relative;display:block;flex:1}
+.timein{display:block;width:100%;min-height:48px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);font-size:17px;font-weight:600;-webkit-appearance:none;appearance:none;text-align:left}
+.timein::-webkit-date-and-time-value{text-align:left}
+.timein.empty{color:transparent}
+.tph{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:15px;pointer-events:none}
+.timewrap:focus-within .tph{display:none}
+.timewrap:focus-within .timein.empty{color:inherit}
+.crashrow{display:flex;align-items:center;gap:12px}
+.crashrow .linkbtn{flex:none}
+.tog .sw.dia{border-radius:2px;transform:rotate(45deg) scale(.82)}
+.stats .sw.dia{border-radius:2px;transform:rotate(45deg) scale(.8)}
+
 /* notes & period browsing */
 .tnote{margin-top:5px;padding-top:5px;border-top:1px solid color-mix(in srgb,var(--bg) 35%,transparent);white-space:pre-wrap;word-break:break-word}
 .pager{display:flex;align-items:center;gap:8px;margin-top:10px}
@@ -158,6 +171,11 @@ nav.tabs button[aria-current=true]{color:var(--accent)}
     </div>
     <div class="strip" id="strip"></div>
     <div id="questions"></div>
+    <div class="card q"><h3 style="display:block">If you crashed today, what time?</h3>
+      <div class="crashrow">
+        <label class="timewrap"><input type="time" id="crashBox" class="timein empty" aria-label="Crash time"><span class="tph">No crash · tap to set a time</span></label>
+        <button class="linkbtn" id="crashClear" hidden>Clear</button>
+      </div></div>
     <div class="card q"><h3>Note <span>optional · shows on the charts</span></h3>
       <textarea id="noteBox" class="noteta" rows="2" maxlength="280" placeholder="e.g. started steroids today"></textarea></div>
     <div class="savebar">
@@ -232,6 +250,12 @@ const B = [
 ];
 const ALL_KEYS = [...Q.map(q=>q.key), ...B.map(b=>b.key)];
 const PERIODS = [[30,'30D'],[90,'90D'],[182,'6M'],[365,'1Y']];
+// Crash time: optional "HH:MM" per day; blank = no crash. Drawn on a right-hand axis, 9:00 at the top (worse) to 21:00 at the bottom.
+const CRASH_TOP=9*60, CRASH_BOTTOM=21*60;
+const CRASH_SINCE='2026-10-14';   // the day this question was added; earlier days weren't asked, so they're left out of crash averages
+const tmin=s=>{const m=/^(\d{1,2}):(\d{2})$/.exec(s||''); return m ? (+m[1])*60+(+m[2]) : null};
+const fmtMin=m=>{const r=Math.round(m); return `${Math.floor(r/60)}:${String(r%60).padStart(2,'0')}`};
+const keep=e=>answered(e) || e.note || e.crash;   // a day is kept if it has any answer, a note or a crash time
 
 /* ---------- storage ---------- */
 const DATA_KEY='checkin.data.v1', SET_KEY='checkin.settings.v1', UI_KEY='checkin.ui.v1';
@@ -285,12 +309,12 @@ function setField(day,key,val){
   const e=Object.assign({},getEntry(day)||{}); delete e.deleted;
   if(val===undefined) delete e[key]; else e[key]=val;
   e.updated=Date.now();
-  data.entries[day] = (answered(e)||e.note) ? e : {deleted:true, updated:e.updated};
+  data.entries[day] = keep(e) ? e : {deleted:true, updated:e.updated};
   persist(); renderLog(); flashSaved(); scheduleSync();
 }
 
 /* notes: saved shortly after typing stops, and always before leaving the day/tab */
-let noteT, pendingNote=null, noteDay=null;
+let noteT, pendingNote=null, noteDay=null, crashDay=null;
 function setNote(day,text){
   text=text.trim();
   const prev=getEntry(day)||{};
@@ -298,7 +322,7 @@ function setNote(day,text){
   const e=Object.assign({},prev); delete e.deleted;
   if(text) e.note=text; else delete e.note;
   e.updated=Date.now();
-  data.entries[day] = (answered(e)||e.note) ? e : {deleted:true, updated:e.updated};
+  data.entries[day] = keep(e) ? e : {deleted:true, updated:e.updated};
   persist(); renderLog(); flashSaved(); scheduleSync();
 }
 function flushNote(){
@@ -309,6 +333,23 @@ function flushNote(){
 $('#noteBox').addEventListener('input',ev=>{ pendingNote={day:cur,text:ev.target.value}; clearTimeout(noteT); noteT=setTimeout(flushNote,700); });
 $('#noteBox').addEventListener('blur',flushNote);
 window.addEventListener('pagehide',flushNote);
+
+/* crash time */
+function crashStart(){
+  let s=CRASH_SINCE;
+  for(const d in data.entries){ const e=data.entries[d]; if(e && !e.deleted && e.crash && d<s) s=d }
+  return s;
+}
+function onCrash(){
+  const cb=$('#crashBox'), v=cb.value;
+  cb.classList.toggle('empty',!v);
+  const val=/^\d{2}:\d{2}$/.test(v) ? v : undefined;
+  if(((getEntry(cur)||{}).crash) === val) return;
+  setField(cur,'crash',val);
+}
+$('#crashBox').addEventListener('input',onCrash);
+$('#crashBox').addEventListener('change',onCrash);
+$('#crashClear').onclick=()=>{ $('#crashBox').value=''; onCrash(); };
 
 let savedT;
 function flashSaved(){const s=$('#saved');s.classList.add('show');clearTimeout(savedT);savedT=setTimeout(()=>s.classList.remove('show'),1400)}
@@ -334,9 +375,13 @@ function renderLog(){
   });
   const n=answered(e);
   $('#progress').textContent = n===ALL_KEYS.length ? 'All 6 answered' : n ? `${n} of 6 answered` : '';
-  $('#delDay').hidden = !n && !e.note;
+  $('#delDay').hidden = !n && !e.note && !e.crash;
   const ta=$('#noteBox');
   if(noteDay!==cur || document.activeElement!==ta){ ta.value=e.note||''; noteDay=cur; }
+  const cb=$('#crashBox');
+  if(crashDay!==cur || document.activeElement!==cb){ cb.value=e.crash||''; crashDay=cur; }
+  cb.classList.toggle('empty',!cb.value);
+  $('#crashClear').hidden=!e.crash;
 }
 
 function goDay(d){ flushNote(); const t=today(); cur = d>t ? t : d; renderLog(); }
@@ -353,7 +398,8 @@ $('#delDay').onclick=()=>{
 function buildTrends(){
   $('#periods').innerHTML = PERIODS.map(([n,l])=>`<button data-p="${n}" aria-pressed="false">${l}</button>`).join('');
   $('#periods').onclick=e=>{const b=e.target.closest('button'); if(!b) return; ui.period=+b.dataset.p; offset=0; store(UI_KEY,ui); renderTrends()};
-  $('#toggles').innerHTML = B.map(b=>`<button class="tog" data-b="${b.key}" style="--c:var(--${b.key})" aria-pressed="false"><span class="sw"></span>${b.short}</button>`).join('');
+  $('#toggles').innerHTML = B.map(b=>`<button class="tog" data-b="${b.key}" style="--c:var(--${b.key})" aria-pressed="false"><span class="sw"></span>${b.short}</button>`).join('')
+    + `<button class="tog" data-b="crash" style="--c:var(--crash)" aria-pressed="false"><span class="sw dia"></span>Crash time</button>`;
   $('#toggles').onclick=e=>{const b=e.target.closest('.tog'); if(!b) return; ui[b.dataset.b]=!ui[b.dataset.b]; store(UI_KEY,ui); renderTrends()};
   $('#charts').innerHTML = Q.map(q=>`<div class="card chart" id="c-${q.key}">
       <h3>${q.label}</h3>
@@ -372,7 +418,13 @@ function renderTrends(){
   const N=ui.period, end=addDays(today(),-offset*N);
   const days=[...Array(N)].map((_,i)=>addDays(end,i-N+1));
   const logged=days.filter(d=>answered(getEntry(d))).length;
-  $('#coverage').textContent = `${logged} of ${N} days logged` + (N>31 ? ' · dots are daily answers, line is the 7-day average' : '');
+  let cov=`${logged} of ${N} days logged`;
+  if(ui.crash){
+    const ts=days.map(getEntry).map(e=>e?tmin(e.crash):null).filter(t=>t!==null);
+    cov += ts.length ? ` · ${ts.length} crash day${ts.length>1?'s':''}, average ${fmtMin(avg(ts))}` : ' · no crashes logged';
+  }
+  if(N>31) cov += ' · dots are daily answers, line is the 7-day average';
+  $('#coverage').textContent = cov;
   // period browsing: ‹ › step by one whole period; ‹ stops once nothing older exists
   let earliest=null;
   for(const d in data.entries){ const e=data.entries[d]; if(e && !e.deleted && (earliest===null || d<earliest)) earliest=d }
@@ -394,7 +446,7 @@ function rangeLabel(a,b){
 
 function drawChart(q,days){
   const card=$('#c-'+q.key), plot=card.querySelector('.plot'), svg=plot.querySelector('svg');
-  const W=Math.max(260, plot.clientWidth||320), H=168, pl=20, pr=10, pt=15, pb=22;
+  const W=Math.max(260, plot.clientWidth||320), H=168, pl=20, pr=ui.crash?40:10, pt=15, pb=22;
   const iw=W-pl-pr, ih=H-pt-pb, N=days.length, step=iw/(N-1);
   const X=i=>pl+i*step, Y=v=>pt+ih-(v-q.min)/4*ih;
   const entries=days.map(getEntry);
@@ -431,7 +483,7 @@ function drawChart(q,days){
     months.forEach(([d,i],k)=>{ if((months.length-1-k)%every===0) ticks.push([i,fmt(d,{month:'short'})]) });
   }
   for(const [i,l] of ticks){
-    const x=Math.min(Math.max(X(i),pl+16),W-18);
+    const x=Math.min(Math.max(X(i),pl+16),pl+iw-8);
     s+=`<text x="${x}" y="${H-5}" text-anchor="middle" font-size="11" fill="var(--text-3)">${l}</text>`;
   }
 
@@ -446,6 +498,25 @@ function drawChart(q,days){
     const ma=vals.map((_,i)=>{const w=all.slice(i,i+7).filter(v=>v!==null);return w.length>=2?avg(w):null});
     vals.forEach((v,i)=>{ if(v!==null) s+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(v)}" r="${N>100?1.8:2.4}" fill="var(--accent)" opacity=".38"/>` });
     s+=`<path d="${path(ma)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  // crash-time overlay on its own right-hand axis: 9:00 at the top, 21:00 at the bottom
+  // (its 5 ticks land on the same gridlines as the left axis)
+  const CR=!!ui.crash;
+  if(CR){
+    const Yc=t=>pt+(Math.min(CRASH_BOTTOM,Math.max(CRASH_TOP,t))-CRASH_TOP)/(CRASH_BOTTOM-CRASH_TOP)*ih;
+    for(let t=CRASH_TOP; t<=CRASH_BOTTOM; t+=180)
+      s+=`<text x="${pl+iw+7}" y="${Yc(t)+4}" text-anchor="start" font-size="11" fill="var(--text-3)">${t/60}:00</text>`;
+    const ct=entries.map(e=>e?tmin(e.crash):null);
+    if(!dense){ // join crashes on consecutive days; a day without a crash breaks the line
+      for(let i=0;i+1<N;i++) if(ct[i]!==null && ct[i+1]!==null)
+        s+=`<line x1="${X(i).toFixed(1)}" y1="${Yc(ct[i]).toFixed(1)}" x2="${X(i+1).toFixed(1)}" y2="${Yc(ct[i+1]).toFixed(1)}" stroke="var(--crash)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+    }
+    const r = dense ? (N>100?3:3.6) : 5.5;
+    ct.forEach((t,i)=>{
+      if(t===null) return;
+      const x=X(i), y=Yc(t), out=t<CRASH_TOP||t>CRASH_BOTTOM;   // outside 9–21: pinned to the edge, drawn hollow
+      s+=`<path d="M${x.toFixed(1)} ${(y-r).toFixed(1)} L${(x+r).toFixed(1)} ${y.toFixed(1)} L${x.toFixed(1)} ${(y+r).toFixed(1)} L${(x-r).toFixed(1)} ${y.toFixed(1)} Z" fill="${out?'var(--surface)':'var(--crash)'}" stroke="${out?'var(--crash)':'var(--surface)'}" stroke-width="1.5"/>`;
+    });
   }
   // note markers: a small pin at the top plus a faint guide line down the chart
   entries.forEach((e,i)=>{
@@ -475,6 +546,14 @@ function drawChart(q,days){
       const f=x=>x.length?avg(x).toFixed(1):'–';
       st+=`<div><span class="sw" style="background:var(--${b.key})"></span><span>${b.short}: <b>${f(bad)}</b> (${bad.length}d) · other days: <b>${f(good)}</b> (${good.length}d)</span></div>`;
     }
+    if(CR){ // crash days vs other days, counting only days since the question existed
+      const since=crashStart(), yes=[], no=[];
+      entries.forEach((e,i)=>{ if(!e || vals[i]===null || days[i]<since) return; (tmin(e.crash)!==null?yes:no).push(vals[i]) });
+      if(yes.length || no.length){
+        const f=x=>x.length?avg(x).toFixed(1):'–';
+        st+=`<div><span class="sw dia" style="background:var(--crash)"></span><span>Crash days: <b>${f(yes)}</b> (${yes.length}d) · other days: <b>${f(no)}</b> (${no.length}d)</span></div>`;
+      }
+    }
   }
   card.querySelector('.stats').innerHTML=st;
 }
@@ -500,6 +579,7 @@ function attachHover(q){
       const w=e.work, so=e.social;
       if(typeof w==='boolean') h+=`<br>9–5: ${w?'could':"couldn't"}`;
       if(typeof so==='boolean') h+=`<br>Plans: ${so?'would cancel':'fine'}`;
+      if(tmin(e.crash)!==null) h+=`<br>Crashed at ${esc(e.crash)}`;
       if(e.note) h+=`<div class="tnote">${esc(e.note)}</div>`;
     }
     tip.innerHTML=h; tip.style.display='block';
@@ -592,9 +672,9 @@ async function shareOrDownload(name,text,type){
 $('#expJson').onclick=()=>shareOrDownload(`checkin-${today()}.json`, canon(data), 'application/json');
 $('#expCsv').onclick=()=>{
   const cell=v=>/[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
-  const rows=[['date',...Q.map(q=>q.key),'could_do_9to5','would_cancel_plans','note']];
+  const rows=[['date',...Q.map(q=>q.key),'could_do_9to5','would_cancel_plans','crash_time','note']];
   Object.keys(data.entries).sort().forEach(d=>{const e=getEntry(d); if(!e) return;
-    rows.push([d,...Q.map(q=>e[q.key]??''),...B.map(b=>typeof e[b.key]==='boolean'?(e[b.key]?'yes':'no'):''),cell(e.note||'')])});
+    rows.push([d,...Q.map(q=>e[q.key]??''),...B.map(b=>typeof e[b.key]==='boolean'?(e[b.key]?'yes':'no'):''),e.crash||'',cell(e.note||'')])});
   shareOrDownload(`checkin-${today()}.csv`, rows.map(r=>r.join(',')).join('\n'), 'text/csv');
 };
 $('#impBtn').onclick=()=>$('#impFile').click();
