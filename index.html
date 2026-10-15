@@ -123,11 +123,6 @@ header h1{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:0}
 .plabel b{display:block;font-size:15px}
 .plabel .linkbtn{color:var(--accent);padding:2px 0;font-size:13px}
 .noteta{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);font-size:16px;line-height:1.35;resize:vertical;min-height:64px;display:block}
-.noteslist h3{margin:0 0 6px;font-size:15px;font-weight:600}
-.nrow{display:flex;gap:10px;width:100%;text-align:left;border:0;border-top:1px solid var(--border);background:none;padding:8px 0;font-size:14px;align-items:baseline}
-.nrow.first{border-top:0}
-.nrow b{flex:none;min-width:50px;color:var(--text-2)}
-.nrow span{flex:1;word-break:break-word}
 
 /* settings */
 label.f{display:block;margin:10px 0}
@@ -188,7 +183,6 @@ nav.tabs button[aria-current=true]{color:var(--accent)}
     </div>
     <div class="toggles" id="toggles"></div>
     <div class="tiny" id="coverage"></div>
-    <div id="notesList"></div>
     <div id="charts"></div>
   </section>
 
@@ -422,11 +416,6 @@ function renderTrends(){
   $('#pPrev').disabled = earliest===null || earliest>=days[0];
   $('#pNext').disabled = offset===0;
   $('#pToday').hidden = offset===0;
-  // notes in this period, oldest first; tap one to jump to that day
-  const notes=days.map(d=>[d,getEntry(d)]).filter(([d,e])=>e && e.note);
-  $('#notesList').innerHTML = notes.length
-    ? `<div class="card noteslist"><h3>Notes in this period</h3>${notes.map(([d,e],k)=>`<button class="nrow${k?'':' first'}" data-d="${d}"><b>${fmt(d,{month:'short',day:'numeric'})}</b><span>${esc(e.note)}</span></button>`).join('')}</div>`
-    : '';
   Q.forEach(q=>drawChart(q,days));
 }
 function rangeLabel(a,b){
@@ -705,7 +694,6 @@ if(!standalone && /iPhone|iPad/.test(navigator.userAgent)) $('#installBanner').s
 $('#pPrev').onclick=()=>{ offset++; renderTrends() };
 $('#pNext').onclick=()=>{ offset=Math.max(0,offset-1); renderTrends() };
 $('#pToday').onclick=()=>{ offset=0; renderTrends() };
-$('#notesList').onclick=ev=>{ const b=ev.target.closest('.nrow'); if(!b) return; cur=b.dataset.d; showTab('log'); renderLog() };
 
 buildQuestions(); buildTrends(); renderLog(); pillIdle(); sync();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
