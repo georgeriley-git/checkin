@@ -227,6 +227,7 @@ nav.tabs button[aria-current=true]{color:var(--accent)}
 const Q = [
   {key:'fatigue', label:'Fatigue', min:0, opts:['None','Mild','Moderate','Severe','Unbearable']},
   {key:'energy',  label:'Energy',  min:1, opts:['Very low','Low','OK','High','Very high']},
+  {key:'activity',label:'Physical activity', min:0, opts:['None','Light','Moderate','Active','Very active']},
   {key:'sleep',   label:'Sleep',   min:1, opts:['Awful','Poor','OK','Good','Great']},
   {key:'stress',  label:'Stress',  min:0, opts:['None','A little','Moderate','A lot','Extreme']},
 ];
@@ -360,7 +361,7 @@ function renderLog(){
     b.setAttribute('aria-pressed', String(e[b.dataset.k]===JSON.parse(b.dataset.v)));
   });
   const n=answered(e);
-  $('#progress').textContent = n===ALL_KEYS.length ? 'All 6 answered' : n ? `${n} of 6 answered` : '';
+  $('#progress').textContent = n===ALL_KEYS.length ? `All ${ALL_KEYS.length} answered` : n ? `${n} of ${ALL_KEYS.length} answered` : '';
   $('#delDay').hidden = !n && !e.note && !e.crash;
   const ta=$('#noteBox');
   if(noteDay!==cur || document.activeElement!==ta){ ta.value=e.note||''; noteDay=cur; }
